@@ -1,17 +1,40 @@
+# NOTE: If you wanna use storage_limit, you need to ensure that:
+#       - the overlay2 driver is being used
+#       - your docker daemon is mounted in a xfs filesystem
+#       - the filesystem have the pquota option enabled
+
 challenges:
   chall1:
     image: ubuntu:latest
     cmd: /bin/bash
+
     password: test_password
+
     stdin_open: true
     tty: true
+
+    mem_limit: 100m
+    cpus: 0.1
+    # storage_limit: 150m # 150MB
+
   chall2:
     image: ubuntu:latest
     cmd: sh -c 'echo $(whoami)@$HOSTNAME && exec /bin/sh'
+
     env:
       - MY_VARIABLE=42
+
     stdin_open: true
     tty: true
+
+    mem_limit: 100m
+    cpus: 0.1
+    # storage_limit: 150m # 150MB
+
   chall3:
     image: nginx:latest
     cmd: nginx -g "daemon off;"
+
+    mem_limit: 100m
+    cpus: 0.1
+    # storage_limit: 150m # 150MB

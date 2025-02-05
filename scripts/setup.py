@@ -41,6 +41,9 @@ def get_docker_command(challenge):
     tty = challenge.get("tty", False)
     stdin_open = challenge.get("stdin_open", False)
     workdir = challenge.get("workdir", None)
+    mem_limit = challenge.get("mem_limit", None)
+    cpus = challenge.get("cpus", None)
+    storage_limit = challenge.get("storage_limit", None)
 
     base = f"docker run --rm"
     if tty:
@@ -67,6 +70,15 @@ def get_docker_command(challenge):
 
     for ef in env_file:
         base += f" --env-file {ef}"
+
+    if mem_limit:
+        base += f" --memory {mem_limit}"
+
+    if cpus:
+        base += f" --cpus {cpus}"
+
+    if storage_limit:
+        base += f" --storage-opt size={storage_limit}"
 
     return f"{base} {image} {cmd}"
 
