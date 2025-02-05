@@ -3,7 +3,7 @@ import os
 import subprocess
 import re
 
-CONFIG_FILE = "/config.yml"
+CONFIG_FILE = "config.yml"
 SSH_CONFIG_DIR = "/etc/ssh/sshd_config.d"
 BASE_SSH_CONFIG = """Port 4242
 PermitUserEnvironment yes
@@ -13,26 +13,21 @@ DOCKER_GID = os.getenv("DOCKER_GID", "999")
 HOST_WORKDIR = os.getenv("HOST_WORKDIR", "/tmp")
 
 def create_user(username, password=""):
-    """Create a user in the container with a password"""
     try:
-        # If a group with GID 999 does not exist, create it with the name "docker_socket"
-        # and add the user to this group.
-        # Otherwise, add the user to the existing group.
+        print(f"Creating user '{username}' with password '{password}'")
 
-        group_name = subprocess.run(["getent", "group", DOCKER_GID], stdout=subprocess.PIPE).stdout.decode().strip()
+        group_name = subprocess.run(
+            ["./scripts/create_group.sh", username, DOCKER_GID],
+            stdout=subprocess.PIPE
+        ).stdout.decode().strip()
 
-        if not group_name:
-            subprocess.run(["addgroup", "-g", DOCKER_GID, "docker_socket"], check=True)
-            group_name = "docker_socket"
-        else:
-            group_name = re.match(r"^(.*?):.*?:.*?$", group_name).group(1)
-
-        subprocess.run(["adduser", "-D", "-G", group_name, username], check=True)
-
-        chpasswd = f"{username}:{password}"
-        subprocess.run(["chpasswd"], input=chpasswd.encode(), check=True)
+        subprocess.run(
+            ["./scripts/create_user.sh", username, "-p", f"{password}", "-g", group_name],
+            check=True
+        )
 
         print(f"User {username} successfully created.")
+
     except subprocess.CalledProcessError as e:
         print(f"Error while creating user {username}: {e}")
         exit(1)
