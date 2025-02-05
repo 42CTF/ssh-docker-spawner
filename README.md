@@ -16,23 +16,18 @@ This project creates a Docker container running an SSH server that:
 
 ## Usage
 
-1. Build the docker image:
+1. Simply build the docker image:
 ```bash
-# You can also specify the USER and PASS args
-docker build . \
-  -t sshds \
-  --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3)
+# Note: This script builds the docker image using the Dockerfile and ensures
+# the use / generation of a persistent ssh-key for the sshds.
+./build.sh
 ```
 2. Run sshds:
 ```bash
-# Note: If running in rootless mode, make sure to bind the correct Docker socket:  
-# Instead of `/var/run/docker.sock`, use `/run/user/<uid>/docker.sock`,  
-# where `<uid>` is the user ID of the rootless Docker instance.  
-docker run -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v ./4242-docker.conf:/etc/ssh/sshd_config.d/4242-docker.conf \
-  -p 4242:4242 \
-  sshds
+# Note: If running in rootless mode, make sure to specify the docker socket
+# path using the -s flag (e.g. ./run.sh -s /run/user/<UID>/docker.sock).
+# The Host port can be specified using the -p flag, but defaults to 4242.
+./run.sh -p 4242
 ```
 3. Connect to sshds via SSH:
 ```bash

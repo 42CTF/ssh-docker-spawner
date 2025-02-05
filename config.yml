@@ -1,0 +1,11 @@
+challenges:
+  chall1:
+    image: ubuntu:latest
+    cmd: /bin/bash
+    password: test123
+  chall2:
+    image: ubuntu:latest
+    cmd: /bin/sh
+  chall3:
+    image: nginx:latest
+    cmd: nginx -g "daemon off;"

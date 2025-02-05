@@ -3,27 +3,17 @@ FROM docker:latest
 # Don't forget to build this image specifying the host's docker gid
 # --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3)
 ARG DOCKER_GID=999
-ARG USER=user
-ARG PASS=
 
-# Add sshd and generate an ssh key to make it happy
-RUN apk add openssh-server
-RUN ssh-keygen -A
+RUN apk add --no-cache openssh-server python3 py3-pip && pip install pyyaml --break-system-packages
 
-# Create the user
-RUN adduser ${USER} -D
+RUN mkdir -p /etc/ssh/sshd_config.d
 
-# Try to give it access to docker deamon
-RUN if getent group ${DOCKER_GID} > /dev/null; then \
-    group_name=$(getent group ${DOCKER_GID} | cut -d: -f1) && \
-    adduser ${USER} "$group_name"; \
-    else \
-    addgroup -g ${DOCKER_GID} docker_sock && \
-    adduser ${USER} docker_sock; \
-    fi
+COPY setup.py /setup.py
+COPY config.yml /config.yml
 
-# Set the user password
-RUN echo "${USER}:${PASS}" | chpasswd
+# Generate SSH configs and create the associated users for each challenge
+RUN python3 /setup.py
 
-CMD ["/usr/sbin/sshd","-D"]
+# Launch SSHD
+CMD ["/usr/sbin/sshd", "-D", "-E", "/dev/pts/0"]
 
