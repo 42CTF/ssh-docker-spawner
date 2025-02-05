@@ -26,4 +26,4 @@ done
 
 mkdir -p ssh-keys && ssh-keygen -t rsa -b 4096 -f ssh-keys/ssh_host_rsa_key -N "" <<< n
 
-docker build . -t sshds --progress plain $FORCE
+docker build . -t sshds --progress plain $FORCE --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3) --build-arg HOST_WORKDIR=$(pwd)

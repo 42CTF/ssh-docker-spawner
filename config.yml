@@ -2,10 +2,16 @@ challenges:
   chall1:
     image: ubuntu:latest
     cmd: /bin/bash
-    password: test123
+    password: test_password
+    stdin_open: true
+    tty: true
   chall2:
     image: ubuntu:latest
-    cmd: /bin/sh
+    cmd: sh -c 'echo $(whoami)@$HOSTNAME && exec /bin/sh'
+    env:
+      - MY_VARIABLE=42
+    stdin_open: true
+    tty: true
   chall3:
     image: nginx:latest
     cmd: nginx -g "daemon off;"

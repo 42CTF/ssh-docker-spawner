@@ -10,6 +10,7 @@ PermitUserEnvironment yes
 """
 
 DOCKER_GID = os.getenv("DOCKER_GID", "999")
+HOST_WORKDIR = os.getenv("HOST_WORKDIR", "/tmp")
 
 def create_user(username, password=""):
     """Create a user in the container with a password"""
@@ -36,6 +37,45 @@ def create_user(username, password=""):
         print(f"Error while creating user {username}: {e}")
         exit(1)
 
+def get_docker_command(challenge):
+    image = challenge["image"]
+    cmd = challenge.get("cmd", "")
+    volumes = challenge.get("volumes", [])
+    env = challenge.get("env", [])
+    env_file = challenge.get("env_file", [])
+    tty = challenge.get("tty", False)
+    stdin_open = challenge.get("stdin_open", False)
+    workdir = challenge.get("workdir", None)
+
+    base = f"docker run --rm"
+    if tty:
+        base += " -t"
+
+    if stdin_open:
+        base += " -i"
+
+    if workdir:
+        base += f" -w {workdir}"
+
+    # If the volume is a relative path, we assume it is relative to the host workdir
+    for volume in volumes:
+        volume = volume.split(":")
+        rest = ":".join(volume[1:])
+
+        if any([volume[0].startswith(p) for p in ["./", "../", "~/"]]):
+            base += f" -v {os.path.join(HOST_WORKDIR, volume[0])}:{rest}"
+        else:
+            base += f" -v {volume[0]}:{rest}"
+
+    for e in env:
+        base += f" -e {e}"
+
+    for ef in env_file:
+        base += f" --env-file {ef}"
+
+    return f"{base} {image} {cmd}"
+
+
 def generate_ssh_config(challenges):
     os.makedirs(SSH_CONFIG_DIR, exist_ok=True)
     ssh_config = BASE_SSH_CONFIG
@@ -43,8 +83,6 @@ def generate_ssh_config(challenges):
     for challenge_name, challenge in challenges.items():
         username = challenge_name  # Each challenge becomes an SSH user
         password = challenge.get("password", "")
-        image = challenge["image"]
-        cmd = challenge["cmd"]
 
         create_user(username, password)  # Create the user in the container
 
@@ -52,7 +90,7 @@ def generate_ssh_config(challenges):
 Match User {username}
     PermitEmptyPasswords yes
     PasswordAuthentication yes
-    ForceCommand docker run -it --rm {image} {cmd}
+    ForceCommand {get_docker_command(challenge)}
     PermitTTY yes
     X11Forwarding no
 """
