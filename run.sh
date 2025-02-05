@@ -6,26 +6,28 @@
 #       Example: ./run.sh -s /run/user/<UID>/docker.sock
 
 function usage {
-  echo "Usage: $0 [-p <port>] [-s <socket>]"
-  echo "  -p <port>    Port to bind the SSH server to (default: 4242)"
-  echo "  -s <socket>  Path to the Docker socket (default: /var/run/docker.sock)"
-  echo "  -h           Display this help message"
+  echo "Usage: $0 [-p <port>] [-s <socket>] [-h] [docker opts]"
+  echo "  -p <port>     Port to bind the SSH server to (default: 4242)"
+  echo "  -s <socket>   Path to the Docker socket (default: /var/run/docker.sock)"
+  echo "  -h            Display this help message"
+  echo "  [docker opts] Additional options to pass to 'docker run'"
 }
 
 while getopts "p:s:h" opt; do
   case $opt in
     p)
       PORT=$OPTARG
+      shift $((OPTIND -1))
       ;;
     s)
       SOCKET=$OPTARG
+      shift $((OPTIND -1))
       ;;
     h)
       usage
       exit 0
       ;;
     \?)
-      echo "Invalid option: $OPTARG" 1>&2
       usage
       exit 1
       ;;
@@ -41,4 +43,4 @@ docker run -it \
   -v $SOCKET:/var/run/docker.sock \
   -v ./ssh-keys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
   -p $PORT:4242 \
-  sshds
+  sshds "$@"

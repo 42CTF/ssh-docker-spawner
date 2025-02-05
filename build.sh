@@ -1,13 +1,14 @@
 #!/bin/bash
 
 function usage {
-  echo "Usage: $0 [-f]"
-  echo "  -f: Force rebuild without cache"
-  echo "  -h: Show this help"
+  echo "Usage: $0 [Options]"
+  echo "Options:"
+  echo "  -f    Force rebuild without cache"
+  echo "  -h    Display this help message"
   exit 1
 }
 
-while getopts "f:h" opt; do
+while getopts "fh" opt; do
   case ${opt} in
     f)
       FORCE="--no-cache"
@@ -17,13 +18,11 @@ while getopts "f:h" opt; do
       exit 0
       ;;
     \?)
-      echo "Invalid option: $OPTARG" 1>&2
       usage
       exit 1
       ;;
   esac
 done
-
 
 mkdir -p ssh-keys && ssh-keygen -t rsa -b 4096 -f ssh-keys/ssh_host_rsa_key -N "" <<< n
 
