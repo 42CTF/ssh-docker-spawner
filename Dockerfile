@@ -1,4 +1,4 @@
-FROM docker:latest
+FROM docker:latest AS sshds
 
 # Don't forget to build this image specifying the host's docker gid
 # --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3)
@@ -9,15 +9,14 @@ ARG HOST_WORKDIR=/tmp
 
 WORKDIR /app
 
-RUN apk add --no-cache openssh-server python3 py3-pip && pip install pyyaml --break-system-packages
+RUN apk add --no-cache openssh-server-pam python3 py3-pip && pip install pyyaml --break-system-packages
 
 RUN mkdir -p /etc/ssh/sshd_config.d
 
 COPY . /app
 
 # Generate SSH configs and create the associated users for each challenge
-RUN python3 ./scripts/setup.py
+RUN python3 ./src/setup.py
 
 # Launch SSHD
-CMD ["/usr/sbin/sshd", "-D", "-E", "/dev/pts/0"]
-
+CMD ["/usr/sbin/sshd.pam", "-D", "-E", "/dev/pts/0"]

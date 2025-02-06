@@ -5,32 +5,25 @@ import re
 
 CONFIG_FILE = "config.yml"
 SSH_CONFIG_DIR = "/etc/ssh/sshd_config.d"
-BASE_SSH_CONFIG = """Port 4242
-PermitUserEnvironment yes
-"""
+BASE_SSH_CONFIG = "Port 4242\n"
 
 DOCKER_GID = os.getenv("DOCKER_GID", "999")
 HOST_WORKDIR = os.getenv("HOST_WORKDIR", "/tmp")
 
 def create_user(username, password=""):
-    try:
-        print(f"Creating user '{username}' with password '{password}'")
+    print(f"Creating user '{username}' with password '{password}'")
 
-        group_name = subprocess.run(
-            ["./scripts/create_group.sh", username, DOCKER_GID],
-            stdout=subprocess.PIPE
-        ).stdout.decode().strip()
+    group_name = subprocess.run(
+        ["./src/create_group.sh", username, DOCKER_GID],
+        stdout=subprocess.PIPE
+    ).stdout.decode().strip()
 
-        subprocess.run(
-            ["./scripts/create_user.sh", username, "-p", f"{password}", "-g", group_name],
-            check=True
-        )
+    subprocess.run(
+        ["./src/create_user.sh", username, "-p", f"{password}", "-g", group_name],
+        check=True
+    )
 
-        print(f"User {username} successfully created.")
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error while creating user {username}: {e}")
-        exit(1)
+    print(f"User {username} successfully created.")
 
 def get_docker_command(challenge):
     image = challenge["image"]
@@ -80,12 +73,26 @@ def get_docker_command(challenge):
     if storage_limit:
         base += f" --storage-opt size={storage_limit}"
 
+    base += f' --label "TOKEN=$TOKEN"'
+
     return f"{base} {image} {cmd}"
 
 
-def generate_ssh_config(challenges):
+def generate_ssh_config(config):
+    challenges = config["challenges"]
+    sshd = config.get("sshd", {})
+
     os.makedirs(SSH_CONFIG_DIR, exist_ok=True)
     ssh_config = BASE_SSH_CONFIG
+    
+    if sshd.get("use_pam", False):
+        ssh_config += "UsePAM yes\n"
+        ssh_config += "PasswordAuthentication no\n"
+        ssh_config += "KbdInteractiveAuthentication yes\n"
+    else:
+        ssh_config += "UsePAM no\n"
+        ssh_config += "PasswordAuthentication yes\n"
+
 
     for challenge_name, challenge in challenges.items():
         username = challenge_name  # Each challenge becomes an SSH user
@@ -95,11 +102,11 @@ def generate_ssh_config(challenges):
 
         user_config = f"""
 Match User {username}
-    PermitEmptyPasswords yes
-    PasswordAuthentication yes
     ForceCommand {get_docker_command(challenge)}
     PermitTTY yes
     X11Forwarding no
+    PermitEmptyPasswords {"no" if sshd.get("use_pam", False) else "yes"}
+    {"PAMServiceName sshd_docker" if sshd.get("use_pam", False) else ""}
 """
         ssh_config += user_config
 
@@ -110,8 +117,16 @@ def main():
     with open(CONFIG_FILE, "r") as f:
         config = yaml.safe_load(f)
 
-    generate_ssh_config(config["challenges"])
-    print("SSHD configuration and users successfully generated.")
+    try:
+        if config.get("sshd", {}).get("use_pam", False):
+            subprocess.run(["./src/PAM/build.sh"], check=True)
+
+        generate_ssh_config(config)
+        print("SSHD configuration and users successfully generated.")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error while generating SSHD configuration: {e}")
+        exit(1)
 
 if __name__ == "__main__":
     main()

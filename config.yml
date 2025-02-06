@@ -13,9 +13,9 @@ challenges:
     stdin_open: true
     tty: true
 
-    mem_limit: 100m
-    cpus: 0.1
-    # storage_limit: 150m # 150MB
+    mem_limit: 100m     # 100MB
+    cpus: 0.1           # 10% of a single core
+    storage_limit: 150m # 150MB of storage
 
   chall2:
     image: ubuntu:latest
@@ -35,6 +35,10 @@ challenges:
     image: nginx:latest
     cmd: nginx -g "daemon off;"
 
-    mem_limit: 100m
-    cpus: 0.1
-    # storage_limit: 150m # 150MB
+    mem_limit: 100m     # 100MB
+    cpus: 0.1           # 10% of a single core
+    storage_limit: 150m # 150MB
+
+
+sshd:
+  use_pam: true

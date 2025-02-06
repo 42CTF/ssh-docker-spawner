@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
 usage() {
   echo "Usage: $0 <username> [-p <password>] [-g <group>] [-h]"
   echo "  <username>    The name of the new user"

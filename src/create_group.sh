@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
 # Create a new group with a GID, or display the group name if the given GID is already in use
 usage() {
   echo "Usage: $0 <groupname> <gid> [-h]"
