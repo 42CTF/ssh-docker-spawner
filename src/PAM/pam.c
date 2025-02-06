@@ -30,9 +30,15 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
 	pam_prompt(pamh, PAM_PROMPT_ECHO_ON, &token, "42CTF token: ");
 
 	// Retrieve user profile from the API
-	// https://42ctf.org/accounts/me/<token>
-	char url[66];
-	snprintf(url, sizeof(url), "https://42ctf.org/en/accounts/me/%s", token);
+	const char *url = "https://42ctf.org/en/accounts/me";
+
+	// Set the Authorization header
+	struct curl_slist *headers = NULL;
+	char auth_header[80];
+	snprintf(auth_header, sizeof(auth_header), "Authorization: %s", token);
+
+	headers = curl_slist_append(headers, auth_header);
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 	res = curl_easy_perform(curl);
