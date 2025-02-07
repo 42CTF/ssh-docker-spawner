@@ -7,19 +7,11 @@ CONFIG_FILE = "config.yml"
 SSH_CONFIG_DIR = "/etc/ssh/sshd_config.d"
 BASE_SSH_CONFIG = "Port 4242\n"
 
-DOCKER_GID = os.getenv("DOCKER_GID", "999")
-HOST_WORKDIR = os.getenv("HOST_WORKDIR", "/tmp")
-
 def create_user(username, password=""):
     print(f"Creating user '{username}' with password '{password}'")
 
-    group_name = subprocess.run(
-        ["./src/create_group.sh", username, DOCKER_GID],
-        stdout=subprocess.PIPE
-    ).stdout.decode().strip()
-
     subprocess.run(
-        ["./src/create_user.sh", username, "-p", f"{password}", "-g", group_name],
+        ["./src/create_user.sh", username, "-p", f"{password}", "-g", "docker"],
         check=True
     )
 
@@ -50,13 +42,8 @@ def get_docker_command(challenge):
 
     # If the volume is a relative path, we assume it is relative to the host workdir
     for volume in volumes:
-        volume = volume.split(":")
-        rest = ":".join(volume[1:])
+        base += f" -v volume"
 
-        if any([volume[0].startswith(p) for p in ["./", "../", "~/"]]):
-            base += f" -v {os.path.join(HOST_WORKDIR, volume[0])}:{rest}"
-        else:
-            base += f" -v {volume[0]}:{rest}"
 
     for e in env:
         base += f" -e {e}"

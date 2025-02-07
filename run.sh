@@ -40,7 +40,8 @@ SOCKET=${SOCKET:-/var/run/docker.sock}
 echo "Listening on Host port $PORT"
 
 docker run -it \
-  -v $SOCKET:/var/run/docker.sock \
   -v ./ssh-keys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
   -p $PORT:4242 \
+  --privileged \
+  --cgroupns=host \
   sshds "$@"

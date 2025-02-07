@@ -1,11 +1,4 @@
-FROM docker:latest AS sshds
-
-# Don't forget to build this image specifying the host's docker gid
-# --build-arg DOCKER_GID=$(getent group docker | cut -d: -f3)
-ARG DOCKER_GID=999
-
-# The host's workdir is needed if you wanna be able to bind mount the host's files
-ARG HOST_WORKDIR=/tmp
+FROM docker:dind
 
 WORKDIR /app
 
@@ -18,5 +11,4 @@ COPY . /app
 # Generate SSH configs and create the associated users for each challenge
 RUN python3 ./src/setup.py
 
-# Launch SSHD
-CMD ["/usr/sbin/sshd.pam", "-D", "-E", "/dev/pts/0"]
+CMD ["/app/entrypoint.sh"]
