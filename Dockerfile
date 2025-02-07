@@ -8,7 +8,4 @@ RUN mkdir -p /etc/ssh/sshd_config.d
 
 COPY . /app
 
-# Generate SSH configs and create the associated users for each challenge
-RUN python3 ./src/setup.py
-
-CMD ["/app/entrypoint.sh"]
+CMD ["python3", "/app/src/manager.py"]

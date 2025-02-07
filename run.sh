@@ -6,22 +6,21 @@
 #       Example: ./run.sh -s /run/user/<UID>/docker.sock
 
 function usage {
-  echo "Usage: $0 [-p <port>] [-s <socket>] [-h] [docker opts]"
-  echo "  -p <port>     Port to bind the SSH server to (default: 4242)"
-  echo "  -s <socket>   Path to the Docker socket (default: /var/run/docker.sock)"
+  echo "Usage: $0 [Options] [CMD]\n"
+  echo "Options:"
+  echo "  -a            Attach the container in foreground"
   echo "  -h            Display this help message"
-  echo "  [docker opts] Additional options to pass to 'docker run'"
+  echo "  -p <port>     Port to bind the SSH server to (default: 4242)\n"
+  echo "CMD: Command to run in the container"
 }
 
-while getopts "p:s:h" opt; do
+while getopts "ap:s:h" opt; do
   case $opt in
+    a)
+      ATTACH=true
+      ;;
     p)
       PORT=$OPTARG
-      shift $((OPTIND -1))
-      ;;
-    s)
-      SOCKET=$OPTARG
-      shift $((OPTIND -1))
       ;;
     h)
       usage
@@ -34,14 +33,25 @@ while getopts "p:s:h" opt; do
   esac
 done
 
+shift $((OPTIND -1))
+
+
+
 PORT=${PORT:-4242}
-SOCKET=${SOCKET:-/var/run/docker.sock}
+ATTACH=${ATTACH:false}
 
 echo "Listening on Host port $PORT"
 
-docker run -it \
+
+docker run \
   -v ./ssh-keys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
+  -v ./:/app \
+  -v ./images:/images \
   -p $PORT:4242 \
   --privileged \
   --cgroupns=host \
+  --tty \
+  $([ "$ATTACH" = true ] && echo "-i" || echo "-d") \
+  --rm \
+  --name sshds \
   sshds "$@"

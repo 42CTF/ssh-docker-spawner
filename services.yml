@@ -3,42 +3,33 @@
 #       - your docker daemon is mounted in a xfs filesystem
 #       - the filesystem have the pquota option enabled
 
-challenges:
-  chall1:
-    image: ubuntu:latest
-    cmd: /bin/bash
-
-    password: test_password
+services:
+  vim:
+    image: example
+    build: /images/example
 
     stdin_open: true
     tty: true
 
     mem_limit: 100m     # 100MB
     cpus: 0.1           # 10% of a single core
-    storage_limit: 150m # 150MB of storage
+    storage_opt:
+      size: 150m        # 150MB
 
-  chall2:
+  bash:
     image: ubuntu:latest
-    cmd: sh -c 'echo $(whoami)@$HOSTNAME && exec /bin/sh'
+    command: /bin/bash
 
-    env:
+    environment:
       - MY_VARIABLE=42
+
+    volumes:
+      - ./data:/mnt/data
 
     stdin_open: true
     tty: true
 
     mem_limit: 100m
     cpus: 0.1
-    # storage_limit: 150m # 150MB
-
-  chall3:
-    image: nginx:latest
-    cmd: nginx -g "daemon off;"
-
-    mem_limit: 100m     # 100MB
-    cpus: 0.1           # 10% of a single core
-    storage_limit: 150m # 150MB
-
-
-sshd:
-  use_pam: true
+    storage_opt:
+      size: 150m        # 150MB
