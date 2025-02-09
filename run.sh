@@ -40,8 +40,10 @@ shift $((OPTIND -1))
 PORT=${PORT:-4242}
 ATTACH=${ATTACH:false}
 
-echo "Listening on Host port $PORT"
 
+docker rm sshds -f
+
+echo "Listening on Host port $PORT"
 
 docker run \
   -v ./ssh-keys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
@@ -52,6 +54,6 @@ docker run \
   --cgroupns=host \
   --tty \
   $([ "$ATTACH" = true ] && echo "-i" || echo "-d") \
-  --rm \
   --name sshds \
+  --restart unless-stopped \
   sshds "$@"

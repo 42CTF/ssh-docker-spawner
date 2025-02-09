@@ -5,23 +5,14 @@ import os
 import shutil
 import time
 
+import supervisor.xmlrpc
+import xmlrpc.client
+
 compose_file = "services.yml"
 sshd_config_dir = "/etc/ssh/sshd_config.d"
+app_dir = "/app"
 
-dockerd_logs = open("/var/log/dockerd.log", "w")
-
-process_config = {
-    "sshd": {
-        "args": ["/usr/sbin/sshd.pam", "-DE", "/dev/pts/0"],
-        "stdout": subprocess.PIPE,
-        "stderr": subprocess.PIPE,
-    },
-    "dockerd": {
-        "args": ["dockerd"],
-        "stdout": dockerd_logs,
-        "stderr": dockerd_logs,
-    }
-}
+rpc = xmlrpc.client.ServerProxy("http://localhost:9001/RPC2")
 
 base_sshd_config = \
 f"""
@@ -39,7 +30,7 @@ def create_user(username, password=""):
 
     try:
         subprocess.run(
-            ["./src/create_user.sh", username, "-p", f"{password}", "-g", "docker"],
+            [f"{app_dir}/src/create_user.sh", username, "-p", f"{password}", "-g", "docker"],
             check=True
         )
     except subprocess.CalledProcessError as e:
@@ -48,18 +39,18 @@ def create_user(username, password=""):
 def validate_compose_file():
     try:
         subprocess.run(
-            ["docker-compose", "-f", compose_file, "config"],
+            ["docker-compose", "-f", f"{app_dir}/{compose_file}", "config"],
             check=True,
             stdout=subprocess.DEVNULL,
         )
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error validating compose file: {e}")
+    except subprocess.CalledProcessError:
+        print(f"Error validating compose file")
         return False
 
 
 def generate_sshd_config():
-    with open(compose_file, "r") as f:
+    with open(f"{app_dir}/{compose_file}", "r") as f:
         config = yaml.safe_load(f)
 
     # if sshd_config_dir/spawner.d/ exists, remove it and recreate it
@@ -89,7 +80,7 @@ def build_PAM():
     print("Building PAM")
     try:
         subprocess.run(
-            ["./src/PAM/build.sh"],
+            [f"{app_dir}/src/PAM/build.sh"],
             check=True
         )
         return True
@@ -97,54 +88,66 @@ def build_PAM():
         print(f"Error building PAM: {e}")
         return False
 
-if not build_PAM() or not generate_sshd_config():
-    exit(1)
-
-processes = {
-    f: subprocess.Popen(
-        p["args"],
-        stdout=p["stdout"],
-        stderr=p["stderr"]
-    ) for f, p in process_config.items()
-}
 
 def sighup_handler(signum, frame):
     print("Received SIGHUP signal")
     if not build_PAM() or not validate_compose_file() or not generate_sshd_config():
         return
-    processes['sshd'].send_signal(signal.SIGHUP)
 
-def stop_all_processes(signum, frame):
-    print(f"Received {signum} signal")
-    for name, process in processes.items():
-        print(f"Terminating {name}")
-        process.terminate()  # Envoie SIGTERM aux processus enfants
-    time.sleep(1)  # Donne un peu de temps aux processus pour s'arrêter
-    for name, process in processes.items():
-        if process.poll() is None:  # Si toujours actif, forcer l'arrêt
-            print(f"Killing {name}")
-            process.kill()
-    exit(0)
+    try:
+        subprocess.run(["pkill", "-SIGHUP", "dockerd"], check=True)
+        print("Sent SIGHUP to dockerd")
+    except subprocess.CalledProcessError as e:
+        print(f"Error sending SIGHUP to dockerd: {e}")
+
+    # check if sshd config is still valid
+    try:
+        subprocess.run(["/usr/sbin/sshd.pam", "-t"], check=True)
+    except subprocess.CalledProcessError:
+        print(f"Error validating sshd config. Modification not applied")
+        return
+
+    print("sshd config is valid, sending SIGHUP to sshd")
+    try:
+        subprocess.run(["pkill", "-SIGHUP", "sshd.pam"], check=True)
+        print("Sent SIGHUP to sshd")
+    except subprocess.CalledProcessError as e:
+        print(f"Error sending SIGHUP to sshd: {e}")
+
 
 signal.signal(signal.SIGHUP, sighup_handler)
-signal.signal(signal.SIGTERM, stop_all_processes)
-signal.signal(signal.SIGINT, stop_all_processes)
-signal.signal(signal.SIGQUIT, stop_all_processes)
-signal.signal(signal.SIGTSTP, stop_all_processes)
 
-while True:
-    time.sleep(1)
-    
-    # Check if the processes are still running
-    # If not, try to restart them
-    for name, process in processes.items():
-        if process.poll() is not None:
-            print(f"Process {name} exited with code {process.returncode}")
-            print(f"Restarting {name}")
-            processes[name] = subprocess.Popen(
-                process_config[name]["args"],
-                stdout=process_config[name]["stdout"],
-                stderr=process_config[name]["stderr"]
-            )
+def main():
+    if not build_PAM() or not validate_compose_file() or not generate_sshd_config():
+        exit(1)
 
+    try:
+        # run supervisord in the background
+        supervisor = subprocess.Popen(
+            ["supervisord", "-c", f"{app_dir}/supervisord.conf"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"Error running supervisord: {e}")
+        exit(1)
 
+    while True:
+        # Every 5 seconds, ensure that sshd and dockerd are still running
+        time.sleep(5)
+
+        try:
+            sshd_state = rpc.supervisor.getProcessInfo("sshd")
+            if sshd_state["statename"] in ["STOPPED", "EXITED", "FATAL"]:
+                print("sshd died. Exiting")
+                exit(1)
+            dockerd_state = rpc.supervisor.getProcessInfo("dockerd")
+            if dockerd_state["statename"] in ["STOPPED", "EXITED", "FATAL"]:
+                print("Dockerd died. Exiting")
+                exit(1)
+        except Exception as e:
+            print(f"Error getting process info: {e}")
+            exit(1)
+
+if __name__ == "__main__":
+    main()

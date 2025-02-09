@@ -4,6 +4,9 @@
 #       - the filesystem have the pquota option enabled
 
 services:
+  ls:
+    image: ubuntu:latest
+    command: /bin/ls -lh
   vim:
     image: example
     build: /images/example
