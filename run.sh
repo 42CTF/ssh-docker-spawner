@@ -47,7 +47,7 @@ echo "Listening on Host port $PORT"
 
 docker run \
   -v ./ssh-keys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
-  -v ./:/app \
+  -v ./app:/app \
   -v ./images:/images \
   -p $PORT:4242 \
   --privileged \

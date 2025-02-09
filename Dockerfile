@@ -14,5 +14,5 @@ RUN sed -i 's/^\s*Subsystem\s*sftp\s*internal-sftp$/#&/' /etc/ssh/sshd_config
 # Create dockerd log directory
 RUN mkdir -p /var/log/dockerd/
 
-CMD ["python", "/app/src/manager.py"]
+CMD ["python", "/app/manager.py"]
 

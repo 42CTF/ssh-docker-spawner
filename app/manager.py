@@ -34,7 +34,7 @@ def create_user(username, password=""):
 
     try:
         subprocess.run(
-            [f"{app_dir}/src/create_user.sh", username, "-p", f"{password}", "-g", "docker"],
+            [f"{app_dir}/scripts/create_user.sh", username, "-p", f"{password}", "-g", "docker"],
             check=True
         )
     except subprocess.CalledProcessError as e:
@@ -68,7 +68,7 @@ def generate_sshd_config():
         print(service)
         create_user(service)
         user_conf = f"Match User {service}\n"
-        user_conf += f"\tForceCommand /app/src/spawner_entrypoint.sh {service}\n"
+        user_conf += f"\tForceCommand /app/scripts/spawner_entrypoint.sh {service}\n"
         user_conf += f"\tPermitTTY yes\n"
         user_conf += f"\tPAMServiceName sshd_docker\n"
 
@@ -84,7 +84,7 @@ def build_PAM():
     print("Building PAM")
     try:
         subprocess.run(
-            [f"{app_dir}/src/PAM/build.sh"],
+            [f"{app_dir}/PAM/build.sh"],
             check=True
         )
         return True
@@ -157,7 +157,7 @@ def main():
     try:
         # run supervisord in the background
         supervisor = subprocess.Popen(
-            ["supervisord", "-c", f"{app_dir}/supervisord.conf"],
+            ["supervisord", "-c", f"{app_dir}/conf/supervisord.conf"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
