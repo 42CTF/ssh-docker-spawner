@@ -8,4 +8,7 @@ RUN mkdir -p /etc/ssh/sshd_config.d
 
 COPY . /app
 
+# Disable sftp
+RUN sed -i 's/^\s*Subsystem\s*sftp\s*internal-sftp$/#&/' /etc/ssh/sshd_config
+
 CMD ["python3", "/app/src/manager.py"]

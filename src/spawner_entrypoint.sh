@@ -2,6 +2,17 @@
 
 set -e
 
+# Check if the SSH_ORIGINAL_COMMAND is set,
+# If if it is, we should just deny the request
+# man ssh(1):
+#   This variable contains the original command line if a forced command is executed.
+if [ -n "$SSH_ORIGINAL_COMMAND" ]; then
+  command=$(echo $SSH_ORIGINAL_COMMAND | cut -d' ' -f1)
+  echo -n "Access denied: "
+  echo "You are not allowed to run '$command' on this server."
+  exit 1
+fi
+
 # Set the working directory to the user's home directory
 mkdir -p $HOME/$TOKEN/
 cd $HOME/$TOKEN/
