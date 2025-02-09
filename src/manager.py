@@ -8,6 +8,10 @@ import time
 import supervisor.xmlrpc
 import xmlrpc.client
 
+# Remove docker host variable
+# Else we can't use docker here
+os.environ.pop("DOCKER_HOST")
+
 compose_file = "services.yml"
 sshd_config_dir = "/etc/ssh/sshd_config.d"
 app_dir = "/app"
@@ -39,7 +43,7 @@ def create_user(username, password=""):
 def validate_compose_file():
     try:
         subprocess.run(
-            ["docker-compose", "-f", f"{app_dir}/{compose_file}", "config"],
+            ["docker", "compose", "-f", f"{app_dir}/{compose_file}", "config"],
             check=True,
             stdout=subprocess.DEVNULL,
         )
@@ -88,11 +92,21 @@ def build_PAM():
         print(f"Error building PAM: {e}")
         return False
 
+def build_images():
+    # Rebuild containers if needed
+    try:
+        subprocess.run(["docker", "compose", "-f", f"{app_dir}/{compose_file}", "build"], check=True)
+        print("Images successfully build")
+        return True
+    except subprocess.CalledProcessError:
+        print("Error building images")
+        return False
 
-def sighup_handler(signum, frame):
-    print("Received SIGHUP signal")
+def update():
     if not build_PAM() or not validate_compose_file() or not generate_sshd_config():
         return
+
+    build_images()
 
     try:
         subprocess.run(["pkill", "-SIGHUP", "dockerd"], check=True)
@@ -114,6 +128,25 @@ def sighup_handler(signum, frame):
     except subprocess.CalledProcessError as e:
         print(f"Error sending SIGHUP to sshd: {e}")
 
+def sighup_handler(signum, frame):
+    print("Received SIGHUP signal")
+    update()
+
+def wait_for_docker(timeout=30):
+    print("Waiting for docker daemon")
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            subprocess.run(["docker", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            print("Docker deamon is ready")
+            return True
+        except subprocess.CalledProcessError:
+            time.sleep(1)
+
+    print("Failed to start docker after 30s")
+    return False
+
 
 signal.signal(signal.SIGHUP, sighup_handler)
 
@@ -131,6 +164,11 @@ def main():
     except subprocess.CalledProcessError as e:
         print(f"Error running supervisord: {e}")
         exit(1)
+
+    if not wait_for_docker():
+        exit(1)
+
+    build_images()
 
     while True:
         # Every 5 seconds, ensure that sshd and dockerd are still running

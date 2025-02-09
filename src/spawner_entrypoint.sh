@@ -50,5 +50,10 @@ if [ -n "$ALREADY_RUNNING" ]; then
   esac
 fi
 
-docker --log-level=warning compose -f compose.yml -f label.yml run --rm $USER
+# Use an invalid buildkit progress mode to break the build
+# The spawner should never build anything (it could lead to potential leaks)
+# The images should be built by the manager
+export BUILDKIT_PROGRESS=break
 
+echo "Spawning container for $USER... (This may take some time)"
+docker --log-level=warning compose -f compose.yml -f label.yml run --rm $USER 2>/dev/null || echo "It seems like this challenge is actually unavailable. Please try again later."
