@@ -9,11 +9,6 @@ This project creates a Docker container running an SSH server that:
 - Automatically spawns a container when users connect
 - Provides a secure and isolated environment for each SSH connection
 
-## Prerequisites
-
-- Docker installed on the host machine
-- Docker socket accessible
-
 ## Usage
 
 ### 1. Simply build the docker image:
@@ -22,15 +17,14 @@ This project creates a Docker container running an SSH server that:
 ./build.sh
 ```
 ### 2. Run sshds:
-**Note**: _If running in rootless mode, make sure to specify the docker socket
-path using the ``-s`` option (e.g. ``./run.sh -s /run/user/<UID>/docker.sock``).<br>
+**Note**:
 The Host port can be specified using the ``-p`` option, but defaults to ``4242``._
 ```bash
-./run.sh -p 4242
+./run.sh -p 1312
 ```
 ### 3. Connect to sshds via SSH:
 ```bash
-ssh user@localhost -p 4242
+ssh user@localhost -p 1312
 ```
 ### 4. Enjoy your newly instantiated container !
 
