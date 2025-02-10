@@ -55,5 +55,19 @@ fi
 # The images should be built by the manager
 export BUILDKIT_PROGRESS=break
 
+set +e
 echo "Spawning container for $USER... (This may take some time)"
-docker --log-level=warning compose -f compose.yml -f label.yml run --rm $USER 2>/dev/null || echo "It seems like this challenge is actually unavailable. Please try again later."
+temp=$(mktemp)
+docker --log-level=warning compose -f compose.yml -f label.yml run --rm $USER 2>$temp
+status=$?
+set -e
+
+if grep -q "invalid progress mode break" $temp; then
+  echo "This container is currently unavailable."
+  echo "Please try again later."
+  status=1
+fi
+
+rm -f $temp
+
+exit $status
