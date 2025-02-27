@@ -22,8 +22,8 @@ base_sshd_config = \
 f"""
 Port 4242
 UsePAM yes
-PasswordAuthentication no
-KbdInteractiveAuthentication yes
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
 PermitEmptyPasswords no
 
 Include {sshd_config_dir}/spawner.d/*.conf
@@ -63,16 +63,32 @@ def generate_sshd_config():
 
     os.makedirs(f"{sshd_config_dir}/spawner.d")
 
+    # limit per user
+    l = f"-l '{config.get('x-sshds', {}).get('container_per_user', '')}'"
     services = config["services"]
-    for service in services.keys():
-        print(service)
-        create_user(service)
-        user_conf = f"Match User {service}\n"
-        user_conf += f"\tForceCommand /app/scripts/spawner_entrypoint.sh {service}\n"
-        user_conf += f"\tPermitTTY yes\n"
-        user_conf += f"\tPAMServiceName sshd_docker\n"
+    for key, service in services.items():
+        is_pam_enabled = service.get("labels", {}).get("pam_auth", False)
+        permit_empty_passwords = service.get("labels", {}).get("permit_empty_passwords", False)
+        password = service.get("labels", {}).get("password", "")
 
-        with open(f"{sshd_config_dir}/spawner.d/{service}.conf", "w") as f:
+        print(key)
+        create_user(key, password)
+        user_conf = f"Match User {key}\n"
+        user_conf += f"\tForceCommand /app/scripts/spawner_entrypoint.sh {key}{' -P' if is_pam_enabled else ''} {l}\n"
+        user_conf += f"\tPermitTTY yes\n"
+
+        if permit_empty_passwords:
+            user_conf += f"\tPermitEmptyPasswords yes\n"
+
+        if is_pam_enabled:
+            user_conf += f"\tPasswordAuthentication no\n"
+            user_conf += f"\tKbdInteractiveAuthentication yes\n"
+            user_conf += f"\tPermitEmptyPasswords no\n"
+            user_conf += f"\tPAMServiceName sshd_docker\n"
+        else:
+            user_conf += f"\tPasswordAuthentication yes\n"
+
+        with open(f"{sshd_config_dir}/spawner.d/{key}.conf", "w") as f:
             f.write(user_conf)
 
     with open(f"{sshd_config_dir}/docker_ssh.conf", "w") as f:
@@ -84,7 +100,7 @@ def build_PAM():
     print("Building PAM")
     try:
         subprocess.run(
-            [f"{app_dir}/PAM/build.sh"],
+            ["make", "-C", f"{app_dir}/PAM"],
             check=True
         )
         return True

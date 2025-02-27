@@ -7,6 +7,9 @@ services:
   ls:
     image: ubuntu:latest
     command: /bin/ls -lh
+    labels:
+      permit_empty_passwords: true
+
   vim:
     image: example
     build: /images/example
@@ -14,10 +17,23 @@ services:
     stdin_open: true
     tty: true
 
-    mem_limit: 100m     # 100MB
-    cpus: 0.1           # 10% of a single core
+
+    deploy:
+      resources:
+        reservations:
+          memory: 100Mb
+          cpus: 0.1 # 10% of a single core
+
+        limits:
+          memory: 500Mb
+          cpus: 0.5 # 50% of a single core
+
     storage_opt:
-      size: 150m        # 150MB
+      size: 150Mb
+
+    labels:
+      #pam_auth: true
+      password: "vipass"
 
   bash:
     image: ubuntu:latest
@@ -32,7 +48,24 @@ services:
     stdin_open: true
     tty: true
 
-    mem_limit: 100m
-    cpus: 0.1
+    deploy:
+      resources:
+        reservations:
+          memory: 100Mb
+          cpus: 0.1 # 10% of a single core
+
+        limits:
+          memory: 500Mb
+          cpus: 0.5 # 50% of a single core
+
     storage_opt:
-      size: 150m        # 150MB
+      size: 150Mb
+
+    labels:
+      pam_auth: true
+
+
+x-sshds:
+  # This option only takes effect on services using the custom PAM module (the module provide us a way to identify
+  # unique users without relying on ip addresses which isn't really accurate as several users can share the same ip)
+  container_per_user: 2

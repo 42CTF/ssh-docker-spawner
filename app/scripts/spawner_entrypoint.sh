@@ -1,6 +1,40 @@
 #!/bin/sh
 
+# Exit immediately if a command exits with a non-zero status
 set -e
+
+usage() {
+  echo "Usage: $0 <service_name> [-P] [-l <limit per user>]"
+  echo "  <service_name>        The name of the service to spawn"
+  echo "  -P                    Specify if the PAM module is used for the current service"
+  echo "  -l <limit per user>   Set the number of container per user"
+}
+
+PAM_AUTH=false
+LIMIT=0
+
+SERVICE_NAME=$1
+shift
+
+while getopts "Pl:" opt; do
+  case ${opt} in
+    P)
+      PAM_AUTH=true
+      ;;
+    l)
+      LIMIT=$OPTARG
+      ;;
+    \?)
+      usage
+      exit 1
+      ;;
+  esac
+done
+shift $((OPTIND -1))
+
+if [ -z "$SERVICE_NAME" ]; then
+  exit 1
+fi
 
 # Check if the SSH_ORIGINAL_COMMAND is set,
 # If if it is, we should just deny the request
@@ -13,41 +47,63 @@ if [ -n "$SSH_ORIGINAL_COMMAND" ]; then
   exit 1
 fi
 
-# Set the working directory to the user's home directory
-mkdir -p $HOME/$TOKEN/
-cd $HOME/$TOKEN/
+# if PAM module is used
+if [ "$PAM_AUTH" = true ]; then
 
-ln -sf /app/services.yml $HOME/$TOKEN/compose.yml
+  # Delete every non-alnum char
+  TOKEN=$(echo "$TOKEN" | tr -cds '[:alnum:]')
 
-cat <<EOF > $HOME/$TOKEN/label.yml
+  if [[ -z "${TOKEN// }" ]]; then
+    echo "ERROR: Invalid token"
+    exit 1
+  fi
+
+  # Set the working directory to the user's home directory
+  mkdir -p "$HOME/$TOKEN/"
+  cd "$HOME/$TOKEN/"
+
+  ln -sf /app/services.yml "$HOME/$TOKEN/compose.yml"
+
+  cat <<EOF > $HOME/$TOKEN/label.yml
 services:
   $USER:
     labels:
       - 'TOKEN=$TOKEN'
 EOF
 
-ALREADY_RUNNING=$(docker ps -q -f label=TOKEN=$TOKEN)
+  DOCKER_ARGS_EXT='-f label.yml'
 
-if [ -n "$ALREADY_RUNNING" ]; then
-  echo "Warning: You already have one or more already running containers."
+  ALREADY_RUNNING=$(docker ps -q -f label=TOKEN="$TOKEN")
 
-  prompt="Do you want to stop them and start a new one? [y/N] "
-  read -r -p "$prompt" response
+  # Compter les conteneurs déjà en cours d'exécution avec le label TOKEN
+  ALREADY_RUNNING=$(docker ps -q -f label=TOKEN="$TOKEN")
+  RUNNING_COUNT=$(echo "$ALREADY_RUNNING" | wc -l)
 
-  case "$response" in
-    [yY][eE][sS]|[yY])
-      for CONTAINER in $ALREADY_RUNNING; do
-	echo -en "Stopping container $CONTAINER \033[s... (this may take up to 10 seconds)"
-        container=$(docker stop $CONTAINER &)
-	# restore cursor position, clear the rest of the line and print OK
-	echo -e "\033[u\033[KOK"
-      done
-      ;;
-    *)
-      echo "Exiting..."
-      exit 0
-      ;;
-  esac
+  if [ "$LIMIT" -gt 0 ] && [ "$RUNNING_COUNT" -ge "$LIMIT" ]; then
+    echo "You have reached the limit of $LIMIT running container(s)."
+    echo "You can stop one of your running container to start a new one."
+
+    list=$(docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}" -f label=TOKEN="$TOKEN")
+    echo "$list"
+
+    # remove head, and get the first column
+    my_containers=$(echo "$list" | awk 'NR>1 {print $1, $NF}')
+
+    prompt="Enter the ID or name of the container to stop: "
+    read -r -p "$prompt" CONTAINER_TO_STOP
+
+    if echo "$my_containers" | grep -qw "$CONTAINER_TO_STOP"; then
+        docker stop "$CONTAINER_TO_STOP"
+    else
+      echo "Error: No such object: '$CONTAINER_TO_STOP'"
+      exit 1
+    fi
+  fi
+else
+    mkdir -p "$HOME/$SERVICE_NAME/"
+    cd "$HOME/$SERVICE_NAME/"
+
+    ln -sf /app/services.yml "$HOME/$SERVICE_NAME/compose.yml"
 fi
 
 # Use an invalid buildkit progress mode to break the build
@@ -58,7 +114,7 @@ export BUILDKIT_PROGRESS=break
 set +e
 echo "Spawning container for $USER... (This may take some time)"
 temp=$(mktemp)
-docker --log-level=warning compose -f compose.yml -f label.yml run --rm $USER 2>$temp
+docker --log-level=warning compose -f compose.yml $DOCKER_ARGS_EXT run --rm $USER 2>$temp
 status=$?
 set -e
 
